@@ -105,13 +105,17 @@ func (enc *Encoder) safeEncode(key Key, rv reflect.Value) (err error) {
 	return nil
 }
 
+type wkt interface {
+	XXX_WellKnownType() string
+}
+
 func (enc *Encoder) encode(key Key, rv reflect.Value) {
 	// Special case. Time needs to be in ISO8601 format.
 	// Special case. If we can marshal the type to text, then we used that.
 	// Basically, this prevents the encoder for handling these types as
 	// generic structs (or whatever the underlying type of a TextMarshaler is).
 	switch rv.Interface().(type) {
-	case time.Time, TextMarshaler:
+	case time.Time, wkt, TextMarshaler:
 		enc.keyEqElement(key, rv)
 		return
 	}
@@ -170,6 +174,17 @@ func (enc *Encoder) eElement(rv reflect.Value) {
 			enc.writeQuoted(string(s))
 		}
 		return
+	case wkt:
+		switch v.XXX_WellKnownType() {
+		case "DoubleValue", "FloatValue", "Int64Value", "UInt64Value",
+			"Int32Value", "UInt32Value", "BoolValue", "StringValue", "BytesValue":
+			// "Wrappers use the same representation in TOML
+			//  as the wrapped primitive type, ..."
+			s := reflect.ValueOf(v).Elem()
+			enc.eElement(s.Field(0))
+			return
+
+		}
 	}
 	switch rv.Kind() {
 	case reflect.Bool:
