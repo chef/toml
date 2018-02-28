@@ -105,10 +105,6 @@ func (enc *Encoder) safeEncode(key Key, rv reflect.Value) (err error) {
 	return nil
 }
 
-type wkt interface {
-	XXX_WellKnownType() string
-}
-
 func (enc *Encoder) encode(key Key, rv reflect.Value) {
 	// Special case. Time needs to be in ISO8601 format.
 	// Special case. If we can marshal the type to text, then we used that.
