@@ -149,7 +149,6 @@ func DecodeReader(r io.Reader, v interface{}) (MetaData, error) {
 // Any type mismatch produces an error. Finding a type that we don't know
 // how to handle produces an unsupported type error.
 func (md *MetaData) unify(data interface{}, rv reflect.Value) error {
-
 	// Special case. Look for a `Primitive` value.
 	if rv.Type() == reflect.TypeOf((*Primitive)(nil)).Elem() {
 		// Save the undecoded data and the key context into the primitive
@@ -163,10 +162,19 @@ func (md *MetaData) unify(data interface{}, rv reflect.Value) error {
 		return nil
 	}
 
-	// Special case. Unmarshaler Interface support.
 	if rv.CanAddr() {
+		// Special case. Unmarshaler Interface support.
 		if v, ok := rv.Addr().Interface().(Unmarshaler); ok {
 			return v.UnmarshalTOML(data)
+		}
+
+		if v, ok := rv.Addr().Interface().(wkt); ok {
+			switch v.XXX_WellKnownType() {
+			case "DoubleValue", "FloatValue", "Int64Value", "UInt64Value",
+				"Int32Value", "UInt32Value", "BoolValue", "StringValue", "BytesValue":
+				s := reflect.ValueOf(v).Elem()
+				return md.unify(data, s.Field(0))
+			}
 		}
 	}
 
@@ -182,6 +190,7 @@ func (md *MetaData) unify(data interface{}, rv reflect.Value) error {
 	if v, ok := rv.Interface().(TextUnmarshaler); ok {
 		return md.unifyText(data, v)
 	}
+
 	// BUG(burntsushi)
 	// The behavior here is incorrect whenever a Go type satisfies the
 	// encoding.TextUnmarshaler interface but also corresponds to a TOML
