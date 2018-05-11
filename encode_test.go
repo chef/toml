@@ -9,6 +9,27 @@ import (
 	"time"
 )
 
+// MyBoolValue and MyStringValue are types for testing the
+// WellKnownType behavior of our TOML library. The behavior
+// is that WTKs represented by our wrapper values are encoded
+// and decoded without their outer structs, as if they were
+//  simple string or boolean values
+type MyBoolValue struct {
+	Value bool `toml:"value,omitempty"`
+}
+
+func (b MyBoolValue) XXX_WellKnownType() string {
+	return "BoolValue"
+}
+
+type MyStringValue struct {
+	SomeKey string `toml:"some_key,omitempty"`
+}
+
+func (b MyStringValue) XXX_WellKnownType() string {
+	return "StringValue"
+}
+
 func TestEncodeRoundTrip(t *testing.T) {
 	type Config struct {
 		Age        int
@@ -386,6 +407,26 @@ ArrayOfMixedSlices = [[1, 2], ["a", "b"]]
 				"": map[string]int{"v": 1},
 			},
 			wantError: errAnything,
+		},
+		"well known types after structs": {
+			input: struct {
+				First  struct{ One string }
+				Second *MyStringValue
+			}{
+				struct{ One string }{"one"},
+				&MyStringValue{"two"},
+			},
+			wantOutput: "Second = \"two\"\n\n[First]\n  One = \"one\"\n",
+		},
+		"empty well know types are omitted": {
+			input: struct {
+				Bool  *MyBoolValue
+				Other string
+			}{
+				nil,
+				"this is a string",
+			},
+			wantOutput: "Other = \"this is a string\"\n",
 		},
 	}
 	for label, test := range tests {

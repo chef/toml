@@ -175,7 +175,11 @@ func (enc *Encoder) eElement(rv reflect.Value) {
 		case "DoubleValue", "FloatValue", "Int64Value", "UInt64Value",
 			"Int32Value", "UInt32Value", "BoolValue", "StringValue", "BytesValue":
 			// "Wrappers use the same representation in TOML
-			//  as the wrapped primitive type, ..."
+			// as the wrapped primitive type, ..."
+			// TODO: sdelano 2018-05-10 calling .Elem() on this only works if
+			// we get pointers to the wrapper types here. that should work for
+			// most all of our protobuf code but could cause problems in other
+			// areas
 			s := reflect.ValueOf(v).Elem()
 			enc.eElement(s.Field(0))
 			return
@@ -419,11 +423,24 @@ func tomlTypeOfGo(rv reflect.Value) tomlType {
 	case reflect.Map:
 		return tomlHash
 	case reflect.Struct:
-		switch rv.Interface().(type) {
+		switch v := rv.Interface().(type) {
 		case time.Time:
 			return tomlDatetime
 		case TextMarshaler:
 			return tomlString
+		case wkt:
+			switch v.XXX_WellKnownType() {
+			case "DoubleValue", "FloatValue":
+				return tomlFloat
+			case "Int64Value", "UInt64Value", "Int32Value", "UInt32Value":
+				return tomlInteger
+			case "BoolValue":
+				return tomlBool
+			case "StringValue", "BytesValue":
+				return tomlString
+			default:
+				return tomlHash
+			}
 		default:
 			return tomlHash
 		}
