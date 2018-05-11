@@ -413,6 +413,14 @@ func tomlTypeOfGo(rv reflect.Value) tomlType {
 		}
 		return tomlArray
 	case reflect.Ptr, reflect.Interface:
+		if v, ok := rv.Interface().(wkt); ok {
+			switch v.XXX_WellKnownType() {
+			case "DoubleValue", "FloatValue", "Int64Value", "UInt64Value",
+				"Int32Value", "UInt32Value", "BoolValue", "StringValue", "BytesValue":
+				s := reflect.ValueOf(v).Elem()
+				return tomlTypeOfGo(s.Field(0))
+			}
+		}
 		return tomlTypeOfGo(rv.Elem())
 	case reflect.String:
 		return tomlString

@@ -7,16 +7,23 @@ import (
 	"net"
 	"testing"
 	"time"
+
+	"github.com/gogo/protobuf/types"
 )
 
 func TestEncodeRoundTrip(t *testing.T) {
+	type Foo struct {
+		Value string
+	}
 	type Config struct {
 		Age        int
 		Cats       []string
 		Pi         float64
 		Perfection []int
 		DOB        time.Time
+		Foo        Foo
 		Ipaddress  net.IP
+		Wkt        *types.StringValue
 	}
 
 	var inputs = Config{
@@ -25,7 +32,9 @@ func TestEncodeRoundTrip(t *testing.T) {
 		3.145,
 		[]int{11, 2, 3, 4},
 		time.Now(),
+		Foo{"Foo"},
 		net.ParseIP("192.168.59.254"),
+		&types.StringValue{"Hello"},
 	}
 
 	var firstBuffer bytes.Buffer
