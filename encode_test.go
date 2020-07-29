@@ -5,11 +5,88 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/gogo/protobuf/types"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
+
+func TestEncodeWrappersPB(t *testing.T) {
+	// Contains all the wrapper types, except for byte slice because go doesn't
+	// allow equality comparison for structs with byte slice members and we want
+	// to easily test round trips
+	type WrappersExample struct {
+		Bool   *wrapperspb.BoolValue
+		Double *wrapperspb.DoubleValue
+		Float  *wrapperspb.FloatValue
+		Int32  *wrapperspb.Int32Value
+		Int64  *wrapperspb.Int64Value
+		String *wrapperspb.StringValue
+		UInt32 *wrapperspb.UInt32Value
+		UInt64 *wrapperspb.UInt64Value
+	}
+	// Matches the WrappersExample struct with unwrapped primitive types. If we
+	// encode the wrappers to TOML correctly (i.e., as the primitive types) then
+	// we can decode the toml into this struct type.
+	type NotWrappersExample struct {
+		Bool   bool
+		Double float64
+		Float  float32
+		Int32  int32
+		Int64  int64
+		String string
+		UInt32 uint32
+		UInt64 uint64
+	}
+	expected := NotWrappersExample{
+		Bool:   true,
+		Double: float64(2.3),
+		Float:  float32(2.3),
+		Int32:  int32(23),
+		Int64:  int64(23),
+		String: "example_string",
+		UInt32: uint32(23),
+		UInt64: uint64(23),
+	}
+	input := WrappersExample{
+		Bool:   &wrapperspb.BoolValue{Value: expected.Bool},
+		Double: &wrapperspb.DoubleValue{Value: expected.Double},
+		Float:  &wrapperspb.FloatValue{Value: expected.Float},
+		Int32:  &wrapperspb.Int32Value{Value: expected.Int32},
+		Int64:  &wrapperspb.Int64Value{Value: expected.Int64},
+		String: &wrapperspb.StringValue{Value: expected.String},
+		UInt32: &wrapperspb.UInt32Value{Value: expected.UInt32},
+		UInt64: &wrapperspb.UInt64Value{Value: expected.UInt64},
+	}
+	var firstBuffer bytes.Buffer
+	e := NewEncoder(&firstBuffer)
+	err := e.Encode(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var roundTrip NotWrappersExample
+	_, err = Decode(firstBuffer.String(), &roundTrip)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if roundTrip != expected {
+		t.Errorf("Round trip of wrapper values to toml to unwrapped values failed.\n---Input struct: %#v\n---Generated TOML:\n%s---Unmarshaled struct: %#v\n", input, firstBuffer.String(), roundTrip)
+	}
+
+	var wrapperRoundTrip WrappersExample
+	_, err = Decode(firstBuffer.String(), &wrapperRoundTrip)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(input, wrapperRoundTrip) {
+		t.Errorf("Round trip of wrapper values to toml to wrapped values failed.\n---Input struct: %#v\n---Generated TOML:\n%s---Unmarshaled struct: %#v\n", input, firstBuffer.String(), wrapperRoundTrip)
+	}
+
+}
 
 func TestEncodeRoundTrip(t *testing.T) {
 	type Foo struct {
@@ -24,6 +101,7 @@ func TestEncodeRoundTrip(t *testing.T) {
 		Foo        Foo
 		Ipaddress  net.IP
 		Wkt        *types.StringValue
+		Wrap       *wrapperspb.StringValue
 	}
 
 	var inputs = Config{
@@ -34,7 +112,8 @@ func TestEncodeRoundTrip(t *testing.T) {
 		time.Now(),
 		Foo{"Foo"},
 		net.ParseIP("192.168.59.254"),
-		&types.StringValue{"Hello"},
+		&types.StringValue{Value: "Hello"},
+		&wrapperspb.StringValue{Value: "Hello"},
 	}
 
 	var firstBuffer bytes.Buffer
